@@ -1,0 +1,16 @@
+{
+  "name": "claude-news",
+  "version": "0.1.0",
+  "description": "Turn a repo's recent activity into a newspaper, driven from a local website.",
+  "type": "module",
+  "bin": {
+    "claude-news": "bin/claude-news.js"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

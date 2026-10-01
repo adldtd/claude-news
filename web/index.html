@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude News</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/marked.min.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-rail">
+      <span id="rail-date"></span>
+      <span id="rail-edition">Morning Edition</span>
+      <span>Price: one <code>git fetch</code></span>
+    </div>
+    <h1 class="masthead-title" id="masthead-title">The Claude News</h1>
+    <p class="masthead-motto">&ldquo;All the commits that are fit to print&rdquo;</p>
+    <div class="masthead-rule"></div>
+  </header>
+
+  <main id="view-loading" class="view">
+    <p class="press-note">Fetching the morning paper&hellip;</p>
+  </main>
+
+  <main id="view-form" class="view" hidden>
+    <section class="assignment">
+      <p class="kicker">From the editor&rsquo;s desk</p>
+      <h2 class="assignment-title">Commission an edition</h2>
+      <p class="assignment-lede">Tell the newsroom which repository to cover, how far back to look and which wires to read.
+        Claude will chase down the stories, write them up and lay out the paper right here.</p>
+
+      <form id="assignment-form" class="assignment-form">
+        <label class="field">
+          <span class="field-label">Beat</span>
+          <select id="f-repo" disabled></select>
+          <span class="field-hint" id="f-repo-hint"></span>
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Since</span>
+            <input type="datetime-local" id="f-since" required>
+            <span class="field-hint" id="f-since-hint"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Until</span>
+            <input type="datetime-local" id="f-until" required>
+            <span class="field-hint">Defaults to now</span>
+          </label>
+        </div>
+
+        <fieldset class="field">
+          <legend class="field-label">Wires to read</legend>
+          <div id="f-sources" class="sources"></div>
+        </fieldset>
+
+        <label class="field">
+          <span class="field-label">House style</span>
+          <select id="f-style"></select>
+          <span class="field-hint" id="f-style-hint"></span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Notes for the editor</span>
+          <textarea id="f-instructions" rows="4" placeholder="e.g. Lead with anything that touched billing. Keep the sports section short."></textarea>
+        </label>
+
+        <p class="form-errors" id="form-errors" role="alert"></p>
+        <button type="submit" class="press-button" id="f-submit">Go to press</button>
+      </form>
+    </section>
+  </main>
+
+  <main id="view-press" class="view" hidden>
+    <section class="press">
+      <div class="press-drum" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="kicker">Stop the presses</p>
+      <h2 class="press-title">The newsroom is on deadline</h2>
+      <p class="press-note">Claude is reading the wires and filing copy. This page updates on its own.</p>
+      <ol class="wire" id="wire" aria-live="polite"></ol>
+    </section>
+  </main>
+
+  <main id="view-news" class="view newsroom" hidden>
+    <nav class="slider" aria-label="Articles">
+      <div class="slider-head">
+        <span class="kicker">In this edition</span>
+        <button type="button" class="link-button" id="new-edition">New edition</button>
+      </div>
+      <ol class="slider-list" id="slider-list"></ol>
+    </nav>
+    <article class="reader" id="reader" tabindex="-1"></article>
+  </main>
+
+  <footer class="colophon">
+    Printed locally by <strong>claude-news</strong>. Every story is written by Claude from the sources listed beneath it.
+  </footer>
+</body>
+</html>
