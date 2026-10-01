@@ -27,11 +27,26 @@ Run `$CN scan --repo <repo>`.
   for. Don't start the site.
 - Otherwise note `sources` (what the user can pick), `remote.webUrl` (for building links),
   `ticketPrefixes`, and `contextFiles` (read these later to explain repo-specific terms).
+- `lastUserCommit.branches` lists every branch holding the user's last commit and `pushed` says
+  whether any of them is on a remote. Don't assume it is on the current branch or in an open PR.
 
 ## 1. Start the site
 
-Run `$CN serve --repo <repo>` and give the user the `url` in one short line, e.g.
+Start the site in the background of this session, so it stops when the session ends:
+
+1. Run `$CN serve --foreground --repo <repo>` with the Bash tool's `run_in_background` set to `true`
+   and `timeout` set to `7200000`.
+2. Run `$CN url --repo <repo>` (in the foreground). It waits for that server and prints its `url`.
+
+Give the user the `url` in one short line, e.g.
 "Your newsroom is open at http://127.0.0.1:PORT/ — pick your options and press **Go to press**."
+
+If you can't run commands in the background, run `$CN serve --repo <repo>` instead. It starts a
+detached server that outlives the session and stops after 3 idle hours, and prints the `url` itself.
+
+When the background task ends (after 2 hours, or when the site is stopped), don't restart it unless
+the user is still using the site. If a later command says the site isn't running, start it again
+the same way: earlier editions stay saved and numbering carries on.
 
 ## 2. Wait for the assignment
 
@@ -49,6 +64,7 @@ from the user and take priority over defaults here (but not over accuracy).
 
 Before and during each step, post a progress line the user sees on the site:
 `$CN status --repo <repo> "Reading 42 commits on main…"`. Aim for one every 20–60 seconds of work.
+Keep each line short (under about 80 characters): the site shows only the newest few.
 
 Gather **only** the selected sources, **only** within `since`–`until`:
 
@@ -87,6 +103,10 @@ links from `remote.webUrl`), code or diffs where they help, real quotes from the
 "what's next". Structure it like a real news article and have fun with it, but never invent
 anything.
 
+**Links.** Only link a commit if it is on a remote branch (`git branch -r --contains <sha>` prints
+something); a link to a local-only commit 404s, so name its branch instead. Link to another story in
+the same edition with `[text](#its-id)`; the site switches to it in place.
+
 Write the edition to `articlesFile` as JSON:
 
 ```json
@@ -107,13 +127,17 @@ Write the edition to `articlesFile` as JSON:
 }
 ```
 
+Write this file directly with your file-writing tool. Don't build it from a JavaScript or shell
+script: article bodies are full of backticks and quotes, and escaping them in code breaks the file.
+
 Order articles by importance; the site puts `breaking` first, then `major`, then `standard`.
 
 ## 6. Publish
 
 Run `$CN publish --repo <repo> <articlesFile>`. If it returns `errors`, fix the file and publish again.
 Then tell the user in one or two lines that the edition is live at the URL, how many stories it
-has, and any sources you had to skip.
+has, any sources you had to skip, and the tokens used (`usage.total`, from the publish result, when
+present; the site shows it too).
 
 The site has a **New edition** button. If the user asks for another edition, go back to step 2. When
 the user is done, `$CN stop --repo <repo>` shuts the site down (it also stops by itself after 3 idle hours).

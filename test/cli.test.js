@@ -1,15 +1,20 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeRepo, tempDir } from './helpers.js';
 
 const run = promisify(execFile);
 const CLI = fileURLToPath(new URL('../bin/claude-news.js', import.meta.url));
-const env = { ...process.env, CLAUDE_NEWS_STATE_ROOT: tempDir('cn-state-') };
+const SESSION = '0000aaaa-1111-2222-3333-444455556666';
+const configDir = tempDir('cn-claude-');
+const transcript = join(configDir, 'projects', '-some-project', `${SESSION}.jsonl`);
+mkdirSync(join(configDir, 'projects', '-some-project'), { recursive: true });
+writeFileSync(transcript, '');
+const env = { ...process.env, CLAUDE_NEWS_STATE_ROOT: tempDir('cn-state-'), CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_SESSION_ID: SESSION };
 const repo = makeRepo({ commits: [{ message: 'first', date: '2026-09-30T08:00:00Z' }] });
 
 async function cn(...args) {
@@ -73,10 +78,14 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   assert.match(got.json.request.style.guide, /broadsheet\.md$/);
   assert.ok(got.json.articlesFile);
 
+  const later = new Date(Date.now() + 60000).toISOString();
+  const usage = { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 50 };
+  writeFileSync(transcript, JSON.stringify({ type: 'assistant', timestamp: later, message: { id: 'm1', usage } }) + '\n');
   assert.equal((await cn('status', 'Reading', 'commits')).code, 0);
   let state = await (await fetch(new URL('api/state', url))).json();
   assert.equal(state.phase, 'generating');
   assert.equal(state.status.at(-1).message, 'Reading commits');
+  assert.equal(state.usage.total, 1160);
 
   const badFile = join(tempDir(), 'bad.json');
   writeFileSync(badFile, JSON.stringify([{ headline: 'no body' }]));
@@ -87,6 +96,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   writeFileSync(got.json.articlesFile, JSON.stringify({ articles: [{ headline: 'Hello', body: 'World', size: 'breaking' }] }));
   const published = await cn('publish', got.json.articlesFile);
   assert.equal(published.code, 0);
+  assert.equal(published.json.usage.output, 50);
   state = await (await fetch(new URL('api/state', url))).json();
   assert.equal(state.phase, 'published');
   assert.equal(state.articles[0].size, 'breaking');
@@ -105,4 +115,76 @@ test('static files cannot escape the web root', async () => {
   const { json } = await cn('serve');
   const r = await fetch(new URL('/..%2f..%2fpackage.json', json.url));
   assert.equal(r.status, 404);
+});
+
+function serveForeground() {
+  const child = spawn(process.execPath, [CLI, 'serve', '--foreground', '--repo', repo], { env, stdio: ['ignore', 'pipe', 'inherit'] });
+  const started = new Promise((resolve, reject) => {
+    let text = '';
+    child.stdout.on('data', (chunk) => {
+      text += chunk;
+      try {
+        resolve(JSON.parse(text));
+      } catch {}
+    });
+    child.once('exit', () => reject(new Error(`foreground serve exited early: ${text}`)));
+  });
+  const exited = new Promise((resolve) => child.once('exit', (code, signal) => resolve({ code, signal })));
+  return { child, started, exited };
+}
+
+test('serve replaces a running server started from other code', async () => {
+  const first = await cn('serve');
+  const infoFile = join(first.json.stateDir, 'server.json');
+  const info = JSON.parse(readFileSync(infoFile, 'utf8'));
+  writeFileSync(infoFile, JSON.stringify({ ...info, version: 'stale' }));
+
+  const second = await cn('serve');
+  assert.equal(second.code, 0);
+  assert.equal(second.json.reused, false);
+  assert.equal(second.json.replaced, true);
+  assert.notEqual(JSON.parse(readFileSync(infoFile, 'utf8')).version, 'stale');
+  assert.equal((await cn('serve')).json.reused, true);
+  await cn('stop');
+});
+
+test('a foreground server belongs to its session and stops with its process', async () => {
+  const detached = await cn('serve');
+  assert.equal(detached.code, 0);
+
+  const fg = serveForeground();
+  const started = await fg.started;
+  assert.equal(started.ok, true);
+  assert.equal(started.foreground, true);
+  assert.equal(started.replaced, true);
+
+  const found = await cn('url');
+  assert.equal(found.code, 0);
+  assert.equal(found.json.url, started.url);
+  assert.equal((await cn('serve')).json.reused, true);
+
+  fg.child.kill('SIGTERM');
+  await fg.exited;
+  const after = await cn('status', 'hello');
+  assert.equal(after.code, 1);
+  assert.match(after.json.reason, /not running/);
+  assert.equal((await cn('url', '--timeout', '1')).code, 1);
+});
+
+test('stop ends a foreground server process', async () => {
+  const fg = serveForeground();
+  await fg.started;
+  assert.equal((await cn('stop')).json.wasRunning, true);
+  const { code } = await fg.exited;
+  assert.equal(code, 0);
+});
+
+test('a restarted server numbers editions after the saved ones', async () => {
+  const served = await cn('serve');
+  writeFileSync(join(served.json.stateDir, 'edition-7.json'), '{}');
+  await cn('stop');
+  const again = await cn('serve');
+  const state = await (await fetch(new URL('api/state', again.json.url))).json();
+  assert.equal(state.edition, 8);
+  await cn('stop');
 });

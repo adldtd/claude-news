@@ -6,6 +6,7 @@ let phase = null;
 let edition = null;
 let statusCount = -1;
 let selectedId = null;
+let currentArticles = [];
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -33,6 +34,22 @@ function formatDate(iso, opts = { dateStyle: 'medium', timeStyle: 'short' }) {
 
 function showView(name) {
   for (const [key, id] of Object.entries(VIEWS)) $(id).hidden = key !== name;
+  document.body.dataset.phase = name;
+}
+
+const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
+
+function renderTokens(node, usage, prefix) {
+  node.hidden = !usage;
+  if (!usage) return;
+  node.textContent = `${prefix}${compact.format(usage.total)} tokens · ${compact.format(usage.output)} output`;
+  node.title = [
+    `Input: ${usage.input.toLocaleString()}`,
+    `Cache writes: ${usage.cacheWrite.toLocaleString()}`,
+    `Cache reads: ${usage.cacheRead.toLocaleString()}`,
+    `Output: ${usage.output.toLocaleString()}`,
+    `${usage.messages} model calls, subagents included`,
+  ].join('\n');
 }
 
 function masthead(state) {
@@ -40,7 +57,8 @@ function masthead(state) {
   $('masthead-title').textContent = `The ${name} Times`;
   document.title = `The ${name} Times`;
   $('rail-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  $('rail-edition').textContent = `Edition No. ${state.edition}`;
+  const opts = { dateStyle: 'medium', timeStyle: 'short' };
+  $('rail-meta').textContent = state.request ? `Covering ${formatDate(state.request.since, opts)} – ${formatDate(state.request.until, opts)}` : '';
 }
 
 function renderForm(state) {
@@ -51,8 +69,8 @@ function renderForm(state) {
 
   $('f-since').value = toLocalInput(scan.defaults.since);
   $('f-until').value = toLocalInput(new Date().toISOString());
-  $('f-since-hint').textContent = scan.lastUserCommit
-    ? `From ${scan.defaults.sinceReason}: “${scan.lastUserCommit.subject}”`
+  $('f-since-hint').textContent = scan.defaults.sinceReason === 'your last commit'
+    ? `From your last commit: “${scan.lastUserCommit.subject}”`
     : `Defaulted to ${scan.defaults.sinceReason}`;
 
   $('f-sources').replaceChildren(
@@ -111,13 +129,10 @@ async function submitForm(event) {
 }
 
 function renderPress(state) {
+  renderTokens($('press-tokens'), state.usage, '');
   if (state.status.length === statusCount) return;
   statusCount = state.status.length;
-  $('wire').replaceChildren(
-    ...state.status.map((s) =>
-      el('li', {}, el('time', { datetime: s.at, text: formatDate(s.at, { timeStyle: 'medium' }) }), el('span', { text: s.message })),
-    ),
-  );
+  $('wire').replaceChildren(...state.status.slice(-5).reverse().map((s) => el('li', { title: formatDate(s.at), text: s.message })));
 }
 
 function sortedArticles(state) {
@@ -155,7 +170,9 @@ function safeMarkdown(markdown) {
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
   for (const a of tpl.content.querySelectorAll('a')) {
-    if (!/^(https?:|mailto:|#)/i.test(a.getAttribute('href') ?? '')) a.removeAttribute('href');
+    const href = a.getAttribute('href') ?? '';
+    if (href.startsWith('#')) continue;
+    if (!/^(https?:|mailto:)/i.test(href)) a.removeAttribute('href');
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
   }
@@ -177,7 +194,7 @@ function selectArticle(articles, id, focus = false) {
 
   const reader = $('reader');
   reader.className = `reader reader--${a.size}`;
-  reader.replaceChildren(
+  reader.replaceChildren(...[
     el('p', { class: 'kicker', text: a.size === 'breaking' ? `Breaking · ${a.section}` : a.section }),
     el('h2', { class: 'reader-headline', text: a.headline }),
     a.dek ? el('p', { class: 'reader-dek', text: a.dek }) : null,
@@ -193,15 +210,25 @@ function selectArticle(articles, id, focus = false) {
           el('ul', {}, ...a.sources.map((s) => el('li', {}, el('a', { href: /^https?:/i.test(s.url) ? s.url : null, target: '_blank', rel: 'noopener noreferrer', text: s.label })))),
         )
       : null,
-  );
-  if (focus) {
-    reader.focus({ preventScroll: true });
-    reader.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  ].filter(Boolean));
+  $('reader-pane').scrollTop = 0;
+  if (focus) reader.focus({ preventScroll: true });
+}
+
+// Links between articles (`#other-article-id`) switch stories in place instead of opening a tab.
+function followArticleLink(event) {
+  const link = event.target.closest('a[href^="#"]');
+  if (!link || !currentArticles.length) return;
+  const id = decodeURIComponent(link.getAttribute('href').slice(1));
+  if (!currentArticles.some((a) => a.id === id)) return;
+  event.preventDefault();
+  selectArticle(currentArticles, id, true);
 }
 
 function renderNews(state) {
   const articles = sortedArticles(state);
+  currentArticles = articles;
+  renderTokens($('news-tokens'), state.usage, 'Written with ');
   const fromHash = decodeURIComponent(location.hash.slice(1));
   if (!articles.some((a) => a.id === selectedId)) selectedId = articles.some((a) => a.id === fromHash) ? fromHash : articles[0]?.id;
   renderSlider(articles);
@@ -230,6 +257,11 @@ async function refresh() {
 }
 
 $('assignment-form').addEventListener('submit', submitForm);
+$('reader').addEventListener('click', followArticleLink);
+window.addEventListener('hashchange', () => {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (phase === 'published' && id !== selectedId && currentArticles.some((a) => a.id === id)) selectArticle(currentArticles, id, true);
+});
 $('new-edition').addEventListener('click', async () => {
   if (!confirm('Start a new edition? The current one will be cleared from this page.')) return;
   await fetch('/api/reset', { method: 'POST' });

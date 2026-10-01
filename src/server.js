@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
+import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 import { validateArticles } from './articles.js';
 import { writeJson, serverInfoPath, clearServerInfo } from './state.js';
 import { PACKAGE_ROOT } from './scan.js';
+import { usageTracker } from './usage.js';
 
 const WEB_ROOT = join(PACKAGE_ROOT, 'web');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -64,8 +66,20 @@ function validRequest(body, scan) {
   };
 }
 
-export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
-  const state = { phase: 'form', edition: 1, scan, request: null, status: [], articles: [], publishedAt: null };
+// A restarted server carries on numbering, so it never overwrites an earlier edition's file.
+function nextEdition(dir) {
+  let names = [];
+  try {
+    names = readdirSync(dir);
+  } catch {}
+  const used = names.map((n) => /^edition-(\d+)\.json$/.exec(n)?.[1]).filter(Boolean).map(Number);
+  return used.length ? Math.max(...used) + 1 : 1;
+}
+
+export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsRoot, version = null, owner = null }) {
+  const state = { phase: 'form', edition: nextEdition(dir), scan, request: null, status: [], articles: [], publishedAt: null, usage: null };
+  let session = null;
+  let tracker = null;
   let waiters = [];
   let idleTimer;
 
@@ -75,6 +89,20 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
     waiters = [];
     for (const w of pending) w();
   };
+  // The agent's CLI calls carry its Claude Code session id; while an edition is being written the
+  // site counts the tokens that session (and its subagents) has used since the form was submitted.
+  const noteSession = (url) => {
+    const id = url.searchParams.get('session');
+    if (id && id !== session) {
+      session = id;
+      tracker = null;
+    }
+  };
+  const updateUsage = () => {
+    if (state.phase !== 'generating' || !session || !state.request) return;
+    tracker ??= usageTracker(session, state.request.submittedAt, projectsRoot);
+    state.usage = tracker() ?? state.usage;
+  };
   const touch = () => {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => shutdown(), IDLE_MS);
@@ -82,13 +110,17 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
   };
 
   const routes = {
-    'GET /api/state': (req, res) => send(res, 200, state),
+    'GET /api/state': (req, res) => {
+      updateUsage();
+      send(res, 200, state);
+    },
 
     'POST /api/generate': async (req, res) => {
       if (state.phase === 'generating') return send(res, 409, { errors: ['an edition is already being written'] });
       const { request, errors } = validRequest(await readBody(req), scan);
       if (errors) return send(res, 400, { errors });
-      Object.assign(state, { phase: 'generating', request, status: [{ at: new Date().toISOString(), message: 'Copy desk received the assignment.' }], articles: [], publishedAt: null });
+      Object.assign(state, { phase: 'generating', request, status: [{ at: new Date().toISOString(), message: 'Copy desk received the assignment.' }], articles: [], publishedAt: null, usage: null });
+      tracker = null;
       persist();
       flushWaiters();
       send(res, 200, { ok: true });
@@ -127,13 +159,15 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
     'POST /api/publish': async (req, res) => {
       const result = validateArticles(await readBody(req));
       if (!result.ok) return send(res, 400, { errors: result.errors });
+      updateUsage();
       Object.assign(state, { phase: 'published', articles: result.articles, publishedAt: new Date().toISOString() });
       persist();
-      send(res, 200, { ok: true, articles: result.articles.length });
+      send(res, 200, { ok: true, articles: result.articles.length, usage: state.usage });
     },
 
     'POST /api/reset': (req, res) => {
-      Object.assign(state, { phase: 'form', edition: state.edition + 1, request: null, status: [], articles: [], publishedAt: null });
+      Object.assign(state, { phase: 'form', edition: state.edition + 1, request: null, status: [], articles: [], publishedAt: null, usage: null });
+      tracker = null;
       persist();
       send(res, 200, { ok: true });
     },
@@ -148,6 +182,7 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
     touch();
     const url = new URL(req.url, 'http://localhost');
     const route = routes[`${req.method} ${url.pathname}`];
+    if (url.pathname.startsWith('/api/')) noteSession(url);
     try {
       if (route) return await route(req, res, url);
       if (req.method !== 'GET') return send(res, 404, { errors: ['not found'] });
@@ -175,7 +210,7 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1' }) {
     server.once('error', reject);
     server.listen(port, host, () => {
       const { port: actual } = server.address();
-      const info = { pid: process.pid, port: actual, url: `http://${host}:${actual}/`, root: scan.root, startedAt: new Date().toISOString() };
+      const info = { pid: process.pid, port: actual, url: `http://${host}:${actual}/`, root: scan.root, startedAt: new Date().toISOString(), version, owner };
       writeJson(serverInfoPath(dir), info);
       persist();
       touch();

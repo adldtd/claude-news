@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { scan, parseRemote, ticketPrefixes } from '../src/scan.js';
 import { makeRepo, tempDir } from './helpers.js';
@@ -82,4 +83,32 @@ test('remotes in https and ssh forms parse to a web URL', () => {
   assert.equal(parseRemote('https://github.com/a/b.git').webUrl, 'https://github.com/a/b');
   assert.equal(parseRemote('ssh://git@gitlab.com/g/sub/p.git').webUrl, 'https://gitlab.com/g/sub/p');
   assert.equal(parseRemote(''), null);
+});
+
+test('a last commit less than 24 hours old widens the default window to 24 hours', () => {
+  const repo = makeRepo({ commits: [{ message: 'just now', date: '2026-10-01T11:50:00Z' }] });
+  const result = scan(repo, { now: NOW });
+  assert.equal(result.defaults.since, '2026-09-30T12:00:00.000Z');
+  assert.match(result.defaults.sinceReason, /last 24 hours/);
+});
+
+test('merge commits do not count as the user\'s last commit', () => {
+  const repo = makeRepo({ commits: [{ message: 'real work', date: '2026-09-29T08:00:00Z' }] });
+  const git = (...args) => execFileSync('git', args, { cwd: repo, env: { ...process.env, GIT_AUTHOR_DATE: '2026-10-01T11:00:00Z', GIT_COMMITTER_DATE: '2026-10-01T11:00:00Z' } });
+  git('checkout', '-q', '-b', 'side');
+  git('commit', '-q', '--allow-empty', '-m', 'side work', '--author', 'Other <other@example.com>');
+  git('checkout', '-q', 'main');
+  git('merge', '-q', '--no-ff', 'side', '-m', 'Merge side');
+  const result = scan(repo, { now: NOW });
+  assert.equal(result.lastUserCommit.subject, 'real work');
+  assert.equal(result.defaults.since, '2026-09-29T08:00:00.000Z');
+});
+
+test('the last commit reports its branches and whether it has been pushed', () => {
+  const repo = makeRepo({ commits: [{ message: 'mine', date: '2026-09-30T08:00:00Z' }] });
+  const result = scan(repo, { now: NOW });
+  assert.deepEqual(result.lastUserCommit.branches, ['main']);
+  assert.equal(result.lastUserCommit.pushed, false);
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: repo });
+  assert.equal(scan(repo, { now: NOW }).lastUserCommit.pushed, true);
 });

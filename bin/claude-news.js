@@ -6,18 +6,23 @@ import { scan } from '../src/scan.js';
 import { stateDir, readServerInfo, clearServerInfo, readJson } from '../src/state.js';
 import { validateArticles } from '../src/articles.js';
 import { startServer } from '../src/server.js';
+import { codeVersion } from '../src/version.js';
 
 const USAGE = `claude-news <command> [options]
 
 Commands
   scan     [--repo PATH]                 check git access and detect sources
-  serve    [--repo PATH]                 start (or reuse) the site and print its URL
+  serve    [--repo PATH] [--foreground]  start (or reuse) the site and print its URL; with
+                                         --foreground the site runs in this process and stops with it
+  url      [--repo PATH] [--timeout S]   wait for this session's site (default 15s) and print its URL
   wait     [--repo PATH] [--timeout S]   block until the user presses Generate (default 540s)
   status   [--repo PATH] <message>       show a progress line on the site
   publish  [--repo PATH] <articles.json> validate and publish the edition
   stop     [--repo PATH]                 stop the site
 
 Every command prints JSON.`;
+
+const FLAGS = new Set(['foreground']);
 
 function parseArgs(argv) {
   const opts = {};
@@ -26,7 +31,9 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split('=');
-      opts[k] = v ?? argv[++i];
+      if (v !== undefined) opts[k] = v;
+      else if (FLAGS.has(k)) opts[k] = true;
+      else opts[k] = argv[++i];
     } else rest.push(a);
   }
   return { opts, rest };
@@ -68,14 +75,35 @@ async function server(repo) {
   return { info, dir, root: result.root };
 }
 
+// Lets the site count the tokens this Claude Code session spends writing the edition.
+const SESSION = process.env.CLAUDE_CODE_SESSION_ID;
+const VERSION = codeVersion();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function api(info, method, path, body, signal) {
-  const r = await fetch(new URL(path, info.url), {
+  const url = new URL(path, info.url);
+  if (SESSION) url.searchParams.set('session', SESSION);
+  const r = await fetch(url, {
     method,
     headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
     signal,
   });
   return { status: r.status, json: await r.json() };
+}
+
+async function stopServer(info, dir) {
+  try {
+    await api(info, 'POST', 'api/stop');
+  } catch {}
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline && (await alive(info))) await sleep(100);
+  clearServerInfo(dir);
+}
+
+// A foreground server belongs to the session that started it; a detached one to nobody.
+function reusable(info, owner) {
+  return info.version === VERSION && (owner === null || info.owner === owner);
 }
 
 const commands = {
@@ -88,9 +116,27 @@ const commands = {
     const result = scanOrExit(opts.repo);
     if (!result) return;
     const dir = stateDir(result.root);
+    const foreground = opts.foreground === true;
+    const owner = foreground ? (SESSION ?? null) : null;
     const existing = readServerInfo(dir);
-    if (await alive(existing)) return out({ ok: true, url: existing.url, reused: true, stateDir: dir });
+    let replaced = false;
+    if (await alive(existing)) {
+      if (reusable(existing, owner)) return out({ ok: true, url: existing.url, reused: true, stateDir: dir });
+      await stopServer(existing, dir);
+      replaced = true;
+    }
     clearServerInfo(dir);
+
+    if (foreground) {
+      const { info, shutdown } = await startServer({ dir, scan: result, port: Number(opts.port) || 0, version: VERSION, owner });
+      for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+        process.on(signal, () => {
+          shutdown();
+          process.exit(0);
+        });
+      }
+      return out({ ok: true, url: info.url, reused: false, replaced, foreground: true, stateDir: dir });
+    }
 
     const self = fileURLToPath(import.meta.url);
     const args = [self, '__server', '--repo', result.root];
@@ -101,8 +147,8 @@ const commands = {
     const deadline = Date.now() + 8000;
     while (Date.now() < deadline) {
       const info = readServerInfo(dir);
-      if (await alive(info)) return out({ ok: true, url: info.url, reused: false, stateDir: dir });
-      await new Promise((r) => setTimeout(r, 150));
+      if (await alive(info)) return out({ ok: true, url: info.url, reused: false, replaced, stateDir: dir });
+      await sleep(150);
     }
     out({ ok: false, reason: 'the server did not start within 8 seconds' }, 1);
   },
@@ -110,7 +156,21 @@ const commands = {
   async __server({ opts }) {
     const result = scan(resolve(opts.repo));
     if (!result.ok) process.exit(1);
-    await startServer({ dir: stateDir(result.root), scan: result, port: Number(opts.port) || 0 });
+    await startServer({ dir: stateDir(result.root), scan: result, port: Number(opts.port) || 0, version: VERSION });
+  },
+
+  async url({ opts }) {
+    const result = scanOrExit(opts.repo);
+    if (!result) return;
+    const dir = stateDir(result.root);
+    const owner = SESSION ?? null;
+    const deadline = Date.now() + (Number(opts.timeout) || 15) * 1000;
+    while (Date.now() < deadline) {
+      const info = readServerInfo(dir);
+      if (info && reusable(info, owner) && (await alive(info))) return out({ ok: true, url: info.url, stateDir: dir });
+      await sleep(150);
+    }
+    out({ ok: false, reason: "this session's site is not running; start it with `claude-news serve --foreground`" }, 1);
   },
 
   async wait({ opts }) {

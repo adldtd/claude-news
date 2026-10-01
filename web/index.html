@@ -4,24 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Claude News</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
   <link rel="stylesheet" href="/style.css">
   <script src="/vendor/marked.min.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <header class="masthead">
-    <div class="masthead-rail">
-      <span id="rail-date"></span>
-      <span id="rail-edition">Morning Edition</span>
-      <span>Price: one <code>git fetch</code></span>
-    </div>
-    <h1 class="masthead-title" id="masthead-title">The Claude News</h1>
-    <p class="masthead-motto">&ldquo;All the commits that are fit to print&rdquo;</p>
-    <div class="masthead-rule"></div>
+  <header class="topbar">
+    <h1 class="topbar-title" id="masthead-title">The Claude News</h1>
+    <p class="topbar-motto">All the commits that are fit to print</p>
   </header>
+  <div class="dateline">
+    <span id="rail-date"></span>
+    <span class="dateline-meta" id="rail-meta"></span>
+  </div>
 
   <main id="view-loading" class="view">
-    <p class="press-note">Fetching the morning paper&hellip;</p>
+    <p class="press-note">Fetching the paper&hellip;</p>
   </main>
 
   <main id="view-form" class="view" hidden>
@@ -64,7 +65,7 @@
 
         <label class="field">
           <span class="field-label">Notes for the editor</span>
-          <textarea id="f-instructions" rows="4" placeholder="e.g. Lead with anything that touched billing. Keep the sports section short."></textarea>
+          <textarea id="f-instructions" rows="3" placeholder="e.g. Lead with anything that touched billing. Keep the sports section short."></textarea>
         </label>
 
         <p class="form-errors" id="form-errors" role="alert"></p>
@@ -73,14 +74,12 @@
     </section>
   </main>
 
-  <main id="view-press" class="view" hidden>
-    <section class="press">
-      <div class="press-drum" aria-hidden="true"><span></span><span></span><span></span></div>
-      <p class="kicker">Stop the presses</p>
-      <h2 class="press-title">The newsroom is on deadline</h2>
-      <p class="press-note">Claude is reading the wires and filing copy. This page updates on its own.</p>
-      <ol class="wire" id="wire" aria-live="polite"></ol>
-    </section>
+  <main id="view-press" class="view press" hidden>
+    <div class="press-drum" aria-hidden="true"><span></span></div>
+    <p class="kicker">Stop the presses</p>
+    <h2 class="press-title">The newsroom is on deadline</h2>
+    <ol class="wire" id="wire" aria-live="polite"></ol>
+    <p class="tokens" id="press-tokens" hidden></p>
   </main>
 
   <main id="view-news" class="view newsroom" hidden>
@@ -90,12 +89,11 @@
         <button type="button" class="link-button" id="new-edition">New edition</button>
       </div>
       <ol class="slider-list" id="slider-list"></ol>
+      <p class="tokens slider-tokens" id="news-tokens" hidden></p>
     </nav>
-    <article class="reader" id="reader" tabindex="-1"></article>
+    <div class="reader-pane" id="reader-pane">
+      <article class="reader" id="reader" tabindex="-1"></article>
+    </div>
   </main>
-
-  <footer class="colophon">
-    Printed locally by <strong>claude-news</strong>. Every story is written by Claude from the sources listed beneath it.
-  </footer>
 </body>
 </html>

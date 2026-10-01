@@ -7,7 +7,7 @@ export const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const STYLES_DIR = join(PACKAGE_ROOT, 'styles');
 
 const NOT_TICKETS = new Set(['UTF', 'ISO', 'SHA', 'RFC', 'HTTP', 'TLS', 'SSL', 'ES', 'CVE', 'GPT', 'X', 'AES', 'RSA', 'WCAG', 'PEP']);
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function run(cmd, args, cwd, timeout = 15000) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024 });
@@ -89,7 +89,7 @@ export function scan(repoPath = process.cwd(), { now = new Date() } = {}) {
 
   let lastUserCommit = null;
   for (const who of [userEmail, userName].filter(Boolean)) {
-    const r = git(['log', '--all', '-1', '--fixed-strings', `--author=${who}`, '--format=%H%x09%cI%x09%s'], root);
+    const r = git(['log', '--all', '--no-merges', '-1', '--fixed-strings', `--author=${who}`, '--format=%H%x09%cI%x09%s'], root);
     if (r.ok && r.out) {
       const [hash, date, subject] = r.out.split('\t');
       lastUserCommit = { hash, date, subject };
@@ -97,11 +97,24 @@ export function scan(repoPath = process.cwd(), { now = new Date() } = {}) {
     }
   }
 
-  const until = now.toISOString();
-  const since = lastUserCommit ? new Date(lastUserCommit.date).toISOString() : new Date(now.getTime() - DAY_MS).toISOString();
-  const sinceReason = lastUserCommit ? 'your last commit' : 'no commits by you found, so the last 24 hours';
-
   const remoteNames = git(['remote'], root).out.split('\n').filter(Boolean);
+  if (lastUserCommit) {
+    const refs = git(['branch', '--all', '--contains', lastUserCommit.hash, '--format=%(refname)'], root).out.split('\n').filter(Boolean);
+    lastUserCommit.branches = refs.map((r) => r.replace(/^refs\/(heads|remotes)\//, ''));
+    lastUserCommit.pushed = refs.some((r) => r.startsWith('refs/remotes/'));
+  }
+
+  const until = now.toISOString();
+  const floor = now.getTime() - MIN_WINDOW_MS;
+  const lastMs = lastUserCommit ? new Date(lastUserCommit.date).getTime() : NaN;
+  const useLast = lastMs < floor;
+  const since = new Date(useLast ? lastMs : floor).toISOString();
+  const sinceReason = useLast
+    ? 'your last commit'
+    : lastUserCommit
+      ? 'the last 24 hours, because your last commit is more recent than that'
+      : 'no commits by you found, so the last 24 hours';
+
   const remoteName = remoteNames.includes('origin') ? 'origin' : remoteNames[0];
   const remote = remoteName ? parseRemote(git(['remote', 'get-url', remoteName], root).out) : null;
   const isGitHub = remote?.host === 'github.com';

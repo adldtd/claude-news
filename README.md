@@ -25,7 +25,8 @@ local URL; open it, choose your options, press **Go to press**, and watch the ed
 
 ```text
 claude-news scan     [--repo PATH]                 check git access and detect sources
-claude-news serve    [--repo PATH]                 start (or reuse) the site and print its URL
+claude-news serve    [--repo PATH] [--foreground]  start (or reuse) the site and print its URL
+claude-news url      [--repo PATH] [--timeout S]   wait for this session's site and print its URL
 claude-news wait     [--repo PATH] [--timeout S]   block until the user presses Go to press
 claude-news status   [--repo PATH] <message>       show a progress line on the site
 claude-news publish  [--repo PATH] <articles.json> validate and publish the edition
@@ -34,6 +35,27 @@ claude-news stop     [--repo PATH]                 stop the site
 
 State lives in `$TMPDIR/claude-news/<repo-hash>/` (override with `CLAUDE_NEWS_STATE_ROOT`). The
 server binds to 127.0.0.1 only and stops itself after 3 idle hours.
+
+`serve` starts a detached server that outlives the agent session. `serve --foreground` runs the
+server in its own process instead. The skill starts it as a Claude Code background task, so the site
+stops when the session ends (or when the task hits its 2-hour limit), and then finds its URL with
+`url`. A foreground server belongs to the session that started it.
+
+`serve` reuses a running server only if it was started from the same code, and a foreground
+`serve` also requires the same session. Otherwise it stops the old server and starts a new one.
+A new server numbers its editions after the ones already saved, so none is overwritten.
+
+## Token count
+
+While an edition is being written, the site shows how many tokens Claude has used since you pressed
+**Go to press**. The finished edition shows the same total. The CLI sends `CLAUDE_CODE_SESSION_ID`
+with each call. The server reads that session's transcript, and any subagent transcripts, under
+`$CLAUDE_CONFIG_DIR/projects` (default `~/.claude/projects`). It counts each model call once. The
+total covers input, cache writes, cache reads and output; hover over the count to see each part.
+Without a session ID, no count is shown.
+
+The page loads Libre Franklin and Source Serif 4 from Google Fonts. Offline, it uses system fonts
+instead.
 
 ## Writing styles
 
