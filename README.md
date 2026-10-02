@@ -45,6 +45,16 @@ stops when the session ends (or when the task hits its 2-hour limit), and then f
 `serve` also requires the same session. Otherwise it stops the old server and starts a new one.
 A new server numbers its editions after the ones already saved, so none is overwritten.
 
+## Saving and printing
+
+Once an edition is published, the ⋯ button in the bottom-right corner offers **Save edition as
+HTML**, **Print** and **New edition**. Saving downloads the edition as one HTML file named
+`<repo>-edition-<N>-<date>.html`, with the site's styles, viewer and Markdown renderer inlined. It
+opens in any browser without the server, and reads like the live page. It leaves out local paths
+and your identity, but keeps the repository name, branch, house style, editor's notes and token
+count shown under *About this edition*. Printing, from the menu or with Ctrl+P, lays out every
+article in order.
+
 ## Token count
 
 While an edition is being written, the site shows how many tokens Claude has used since you pressed
@@ -54,8 +64,8 @@ with each call. The server reads that session's transcript, and any subagent tra
 total covers input, cache writes, cache reads and output; hover over the count to see each part.
 Without a session ID, no count is shown.
 
-The page loads Libre Franklin and Source Serif 4 from Google Fonts. Offline, it uses system fonts
-instead.
+The page, and any saved edition, loads Libre Franklin and Source Serif 4 from Google Fonts. Offline,
+it uses system fonts instead.
 
 ## Writing styles
 

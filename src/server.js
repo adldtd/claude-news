@@ -6,6 +6,7 @@ import { validateArticles } from './articles.js';
 import { writeJson, serverInfoPath, clearServerInfo } from './state.js';
 import { PACKAGE_ROOT } from './scan.js';
 import { usageTracker } from './usage.js';
+import { editionHtml, editionFilename } from './export.js';
 
 const WEB_ROOT = join(PACKAGE_ROOT, 'web');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -146,6 +147,17 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsR
         waiters = waiters.filter((w) => w !== finish);
         clearTimeout(timer);
       });
+    },
+
+    'GET /api/edition.html': async (req, res) => {
+      if (state.phase !== 'published') return send(res, 409, { errors: ['no edition has been published yet'] });
+      const html = await editionHtml(state, WEB_ROOT);
+      res.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'content-disposition': `attachment; filename="${editionFilename(state)}"`,
+        'cache-control': 'no-store',
+      });
+      res.end(html);
     },
 
     'POST /api/status': async (req, res) => {
