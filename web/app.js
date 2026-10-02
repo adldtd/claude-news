@@ -105,6 +105,9 @@ async function refresh() {
     masthead(state);
     showView(phase);
     if (phase === 'form') renderForm(state);
+    $('edition-menu').hidden = phase !== 'published';
+    $('menu-list').hidden = true;
+    $('menu-button').setAttribute('aria-expanded', 'false');
     if (phase === 'published') renderNews(state);
   }
   if (phase === 'generating') renderPress(state);
@@ -118,9 +121,59 @@ async function newEdition() {
   await refresh();
 }
 
+// The ⋯ menu: a menu button whose items are reachable with the arrow keys and close on Escape.
+function initMenu() {
+  const button = $('menu-button');
+  const list = $('menu-list');
+  const items = () => [...list.querySelectorAll('[role="menuitem"]')];
+  const open = (focusIndex = 0) => {
+    list.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+    items().at(focusIndex)?.focus();
+  };
+  const close = (refocus = true) => {
+    if (list.hidden) return;
+    list.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    if (refocus) button.focus();
+  };
+  button.addEventListener('click', () => (list.hidden ? open() : close()));
+  button.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      open(e.key === 'ArrowDown' ? 0 : -1);
+    }
+  });
+  list.addEventListener('keydown', (e) => {
+    const all = items();
+    const i = all.indexOf(document.activeElement);
+    const moves = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 };
+    if (e.key in moves) {
+      e.preventDefault();
+      all.at(moves[e.key] % all.length)?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'Tab') close(false);
+  });
+  document.addEventListener('click', (e) => {
+    if (!$('edition-menu').contains(e.target)) close(false);
+  });
+  // The save item is a plain download link; the server names the file.
+  $('menu-save').addEventListener('click', () => close());
+  $('menu-print').addEventListener('click', () => {
+    close();
+    window.print();
+  });
+  $('menu-new').addEventListener('click', () => {
+    close();
+    newEdition();
+  });
+}
+
 $('assignment-form').addEventListener('submit', submitForm);
 initViewer();
-$('new-edition').addEventListener('click', newEdition);
+initMenu();
 
 refresh();
 setInterval(refresh, 1500);

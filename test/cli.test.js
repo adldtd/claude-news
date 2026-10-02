@@ -87,6 +87,8 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   assert.equal(state.status.at(-1).message, 'Reading commits');
   assert.equal(state.usage.total, 1160);
 
+  assert.equal((await fetch(new URL('api/edition.html', url))).status, 409);
+
   const badFile = join(tempDir(), 'bad.json');
   writeFileSync(badFile, JSON.stringify([{ headline: 'no body' }]));
   const rejected = await cn('publish', badFile);
@@ -100,6 +102,12 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   state = await (await fetch(new URL('api/state', url))).json();
   assert.equal(state.phase, 'published');
   assert.equal(state.articles[0].size, 'breaking');
+
+  const saved = await fetch(new URL('api/edition.html', url));
+  assert.equal(saved.status, 200);
+  assert.match(saved.headers.get('content-type'), /^text\/html/);
+  assert.match(saved.headers.get('content-disposition'), /^attachment; filename="[^"]+-edition-1-\d{4}-\d{2}-\d{2}\.html"$/);
+  assert.match(await saved.text(), /"headline":"Hello"/);
 
   await fetch(new URL('api/reset', url), { method: 'POST' });
   state = await (await fetch(new URL('api/state', url))).json();

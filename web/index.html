@@ -87,7 +87,6 @@
     <nav class="slider" aria-label="Articles">
       <div class="slider-head">
         <span class="kicker">In this edition</span>
-        <button type="button" class="link-button" id="new-edition">New edition</button>
       </div>
       <ol class="slider-list" id="slider-list"></ol>
       <footer class="colophon">
@@ -100,5 +99,17 @@
       <article class="reader" id="reader" tabindex="-1"></article>
     </div>
   </main>
+
+  <div class="menu" id="edition-menu" hidden>
+    <ul class="menu-list" id="menu-list" role="menu" aria-labelledby="menu-button" hidden>
+      <li role="none"><a role="menuitem" id="menu-save" href="/api/edition.html" download>Save edition as HTML</a></li>
+      <li role="none"><button type="button" role="menuitem" id="menu-print">Print</button></li>
+      <li role="none"><button type="button" role="menuitem" id="menu-new">New edition</button></li>
+    </ul>
+    <button type="button" class="menu-button" id="menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-list" title="Edition options">
+      <span class="visually-hidden">Edition options</span>
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
+  </div>
 </body>
 </html>
