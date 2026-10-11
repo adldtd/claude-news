@@ -38,7 +38,7 @@ server binds to 127.0.0.1 only and stops itself after 3 idle hours.
 
 The form remembers the wires and house style you last sent to press, per repo, in
 `~/.config/claude-news/preferences.json` (follows `XDG_CONFIG_HOME`; override the folder with
-`CLAUDE_NEWS_CONFIG_DIR`). **Reset to defaults** under the wires brings back the scan's picks.
+`CLAUDE_NEWS_CONFIG_DIR`).
 
 `serve` starts a detached server that outlives the agent session. `serve --foreground` runs the
 server in its own process instead. The skill starts it as a Claude Code background task, so the site

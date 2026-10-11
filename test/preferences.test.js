@@ -21,7 +21,6 @@ test('with nothing saved the form uses the scan defaults', () => {
   assert.deepEqual(formDefaults(scan, {}), {
     sources: { git: true, linear: true, 'github-prs': false, 'github-actions': false },
     style: 'broadsheet',
-    remembered: false,
   });
 });
 
@@ -34,12 +33,10 @@ test('a deselected source stays deselected for that repo only', () => {
   assert.equal(here.sources.linear, false);
   assert.equal(here.sources['github-actions'], true);
   assert.equal(here.style, 'tabloid');
-  assert.equal(here.remembered, true);
 
   const other = formDefaults({ ...scan, root: '/repo/b' }, prefs);
   assert.equal(other.sources.linear, true);
   assert.equal(other.style, 'tabloid', 'a new repo starts with the last style used anywhere');
-  assert.equal(other.remembered, false);
 });
 
 test('an unavailable source keeps its saved value until it is available again', () => {

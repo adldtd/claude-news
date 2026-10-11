@@ -15,13 +15,6 @@ function showView(name) {
   document.body.dataset.phase = name;
 }
 
-// Ticks the sources and picks the style; `chosen` is the saved preferences or the scan's defaults.
-function applyChoices(chosen) {
-  for (const input of document.querySelectorAll('input[name="source"]')) input.checked = Boolean(chosen.sources[input.value]);
-  $('f-style').value = chosen.style ?? '';
-  $('f-style').onchange?.();
-}
-
 function renderForm(state) {
   const { scan, preferences } = state;
   const repo = $('f-repo');
@@ -37,7 +30,7 @@ function renderForm(state) {
   $('f-sources').replaceChildren(
     ...scan.sources.map((s) =>
       el('label', { class: `source${s.available ? '' : ' is-off'}` },
-        el('input', { type: 'checkbox', name: 'source', value: s.id, disabled: !s.available }),
+        el('input', { type: 'checkbox', name: 'source', value: s.id, checked: preferences.sources[s.id], disabled: !s.available }),
         el('span', { class: 'source-name', text: s.label }),
         el('span', { class: 'source-detail', text: s.detail }),
       ),
@@ -45,22 +38,12 @@ function renderForm(state) {
   );
 
   const style = $('f-style');
-  style.replaceChildren(...scan.styles.map((s) => el('option', { value: s.id, text: s.label })));
-  style.onchange = () => {
+  style.replaceChildren(...scan.styles.map((s) => el('option', { value: s.id, selected: s.id === preferences.style, text: s.label })));
+  const describeStyle = () => {
     $('f-style-hint').textContent = scan.styles.find((s) => s.id === style.value)?.description ?? '';
   };
-
-  const defaults = {
-    sources: Object.fromEntries(scan.sources.map((s) => [s.id, s.defaultOn])),
-    style: scan.styles.find((s) => s.default)?.id ?? scan.styles[0]?.id,
-  };
-  applyChoices(preferences ?? defaults);
-  const hint = $('f-sources-hint');
-  hint.hidden = !preferences?.remembered;
-  $('f-sources-reset').onclick = () => {
-    applyChoices(defaults);
-    hint.hidden = true;
-  };
+  style.onchange = describeStyle;
+  describeStyle();
 
   $('f-instructions').value = '';
   $('form-errors').textContent = '';

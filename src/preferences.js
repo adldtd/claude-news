@@ -17,8 +17,7 @@ export function readPreferences(file = preferencesPath()) {
   return prefs && typeof prefs === 'object' && !Array.isArray(prefs) ? prefs : {};
 }
 
-// What the form should start with for this repo: each source checked or not, the style, and
-// whether any of it came from saved preferences rather than the scan's defaults.
+// What the form should start with for this repo: each source checked or not, and the style.
 export function formDefaults(scan, prefs) {
   const saved = prefs.repos?.[scan.root] ?? {};
   const known = (id) => scan.styles.some((s) => s.id === id);
@@ -27,8 +26,7 @@ export function formDefaults(scan, prefs) {
   const sources = Object.fromEntries(
     scan.sources.map((s) => [s.id, s.available && (typeof saved.sources?.[s.id] === 'boolean' ? saved.sources[s.id] : s.defaultOn)]),
   );
-  const remembered = Boolean(saved.sources || saved.style);
-  return { sources, style, remembered };
+  return { sources, style };
 }
 
 // Records what the user sent to press. Sources that were unavailable keep their saved value, so

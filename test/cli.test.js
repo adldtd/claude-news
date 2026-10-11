@@ -114,7 +114,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   state = await (await fetch(new URL('api/state', url))).json();
   assert.equal(state.phase, 'form');
   assert.equal(state.edition, 2);
-  assert.equal(state.preferences.remembered, true);
+  assert.equal(state.preferences.sources.git, true);
   assert.equal(state.preferences.style, 'broadsheet');
   const prefs = JSON.parse(readFileSync(join(configRoot, 'preferences.json'), 'utf8'));
   assert.equal(prefs.repos[state.scan.root].sources.git, true);
