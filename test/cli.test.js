@@ -14,7 +14,8 @@ const configDir = tempDir('cn-claude-');
 const transcript = join(configDir, 'projects', '-some-project', `${SESSION}.jsonl`);
 mkdirSync(join(configDir, 'projects', '-some-project'), { recursive: true });
 writeFileSync(transcript, '');
-const env = { ...process.env, CLAUDE_NEWS_STATE_ROOT: tempDir('cn-state-'), CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_SESSION_ID: SESSION };
+const configRoot = tempDir('cn-config-');
+const env = { ...process.env, CLAUDE_NEWS_STATE_ROOT: tempDir('cn-state-'), CLAUDE_NEWS_CONFIG_DIR: configRoot, CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_SESSION_ID: SESSION };
 const repo = makeRepo({ commits: [{ message: 'first', date: '2026-09-30T08:00:00Z' }] });
 
 async function cn(...args) {
@@ -120,6 +121,10 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   state = await (await fetch(new URL('api/state', url))).json();
   assert.equal(state.phase, 'form');
   assert.equal(state.edition, 2);
+  assert.equal(state.preferences.sources.git, true);
+  assert.equal(state.preferences.style, 'broadsheet');
+  const prefs = JSON.parse(readFileSync(join(configRoot, 'preferences.json'), 'utf8'));
+  assert.equal(prefs.repos[state.scan.root].sources.git, true);
 
   const stopped = await cn('stop');
   assert.equal(stopped.json.wasRunning, true);

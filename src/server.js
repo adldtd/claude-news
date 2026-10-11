@@ -8,6 +8,7 @@ import { writeJson, serverInfoPath, clearServerInfo } from './state.js';
 import { PACKAGE_ROOT } from './scan.js';
 import { usageTracker } from './usage.js';
 import { editionHtml, editionFilename } from './export.js';
+import { formDefaults, readPreferences, savePreferences } from './preferences.js';
 
 const WEB_ROOT = join(PACKAGE_ROOT, 'web');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -82,7 +83,8 @@ function nextEdition(dir) {
 }
 
 export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsRoot, version = null, owner = null }) {
-  const state = { phase: 'form', edition: nextEdition(dir), scan, request: null, status: [], articles: [], publishedAt: null, usage: null };
+  const loadPreferences = () => formDefaults(scan, readPreferences());
+  const state = { phase: 'form', edition: nextEdition(dir), scan, preferences: loadPreferences(), request: null, status: [], articles: [], publishedAt: null, usage: null };
   let session = null;
   let tracker = null;
   let waiters = [];
@@ -124,6 +126,10 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsR
       if (state.phase === 'generating') return send(res, 409, { errors: ['an edition is already being written'] });
       const { request, errors } = validRequest(await readBody(req), scan);
       if (errors) return send(res, 400, { errors });
+      // Remembering the choices is a convenience; failing to write them never stops the press.
+      try {
+        state.preferences = formDefaults(scan, savePreferences(scan, request));
+      } catch {}
       Object.assign(state, { phase: 'generating', request, status: [{ at: new Date().toISOString(), message: 'Copy desk received the assignment.' }], articles: [], publishedAt: null, usage: null });
       tracker = null;
       persist();
@@ -182,7 +188,7 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsR
     },
 
     'POST /api/reset': (req, res) => {
-      Object.assign(state, { phase: 'form', edition: state.edition + 1, request: null, status: [], articles: [], publishedAt: null, usage: null });
+      Object.assign(state, { phase: 'form', edition: state.edition + 1, preferences: loadPreferences(), request: null, status: [], articles: [], publishedAt: null, usage: null });
       tracker = null;
       persist();
       send(res, 200, { ok: true });

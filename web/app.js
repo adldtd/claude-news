@@ -60,7 +60,7 @@ function showView(name) {
 }
 
 function renderForm(state) {
-  const { scan } = state;
+  const { scan, preferences } = state;
   const repo = $('f-repo');
   repo.replaceChildren(el('option', { value: scan.root, selected: true, text: scan.remote ? `${scan.remote.path}  (${scan.root})` : scan.root }));
   $('f-repo-hint').textContent = `Branch ${scan.branch}`;
@@ -74,7 +74,7 @@ function renderForm(state) {
   $('f-sources').replaceChildren(
     ...scan.sources.map((s) =>
       el('label', { class: `source${s.available ? '' : ' is-off'}` },
-        el('input', { type: 'checkbox', name: 'source', value: s.id, checked: s.defaultOn, disabled: !s.available }),
+        el('input', { type: 'checkbox', name: 'source', value: s.id, checked: preferences.sources[s.id], disabled: !s.available }),
         el('span', { class: 'source-name', text: s.label }),
         el('span', { class: 'source-detail', text: s.detail }),
       ),
@@ -82,7 +82,7 @@ function renderForm(state) {
   );
 
   const style = $('f-style');
-  style.replaceChildren(...scan.styles.map((s) => el('option', { value: s.id, selected: s.default, text: s.label })));
+  style.replaceChildren(...scan.styles.map((s) => el('option', { value: s.id, selected: s.id === preferences.style, text: s.label })));
   const describeStyle = () => {
     $('f-style-hint').textContent = scan.styles.find((s) => s.id === style.value)?.description ?? '';
   };
