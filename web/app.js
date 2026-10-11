@@ -105,7 +105,9 @@ async function refresh() {
     masthead(state);
     showView(phase);
     if (phase === 'form') renderForm(state);
-    $('edition-menu').hidden = phase !== 'published';
+    // The menu is always there for the theme; the edition's own items wait for a published edition.
+    $('edition-menu').hidden = false;
+    for (const item of document.querySelectorAll('[data-edition-only]')) item.hidden = phase !== 'published';
     $('menu-list').hidden = true;
     $('menu-button').setAttribute('aria-expanded', 'false');
     if (phase === 'published') renderNews(state);
@@ -121,11 +123,28 @@ async function newEdition() {
   await refresh();
 }
 
+// The reader's light/dark choice, remembered per browser. The page applies a saved one before
+// first paint (see index.html); with none saved it follows the system theme.
+const THEME_KEY = 'claude-news:theme';
+const darkScheme = matchMedia('(prefers-color-scheme: dark)');
+const currentTheme = () => document.documentElement.dataset.theme ?? (darkScheme.matches ? 'dark' : 'light');
+
+function labelThemeItem() {
+  $('menu-theme').textContent = currentTheme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+function toggleTheme() {
+  const theme = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+  labelThemeItem();
+}
+
 // The ⋯ menu: a menu button whose items are reachable with the arrow keys and close on Escape.
 function initMenu() {
   const button = $('menu-button');
   const list = $('menu-list');
-  const items = () => [...list.querySelectorAll('[role="menuitem"]')];
+  const items = () => [...list.querySelectorAll('li:not([hidden]) > [role="menuitem"]')];
   const open = (focusIndex = 0) => {
     list.hidden = false;
     button.setAttribute('aria-expanded', 'true');
@@ -169,6 +188,12 @@ function initMenu() {
     close();
     newEdition();
   });
+  $('menu-theme').addEventListener('click', () => {
+    close();
+    toggleTheme();
+  });
+  labelThemeItem();
+  darkScheme.addEventListener('change', labelThemeItem);
 }
 
 $('assignment-form').addEventListener('submit', submitForm);

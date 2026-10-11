@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Claude News</title>
+  <script>
+    // Apply the reader's saved theme before first paint; with none saved the page follows the system.
+    try {
+      const theme = localStorage.getItem('claude-news:theme');
+      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
@@ -102,12 +109,13 @@
 
   <div class="menu" id="edition-menu" hidden>
     <ul class="menu-list" id="menu-list" role="menu" aria-labelledby="menu-button" hidden>
-      <li role="none"><a role="menuitem" id="menu-save" href="/api/edition.html" download>Save edition as HTML</a></li>
-      <li role="none"><button type="button" role="menuitem" id="menu-print">Print</button></li>
-      <li role="none"><button type="button" role="menuitem" id="menu-new">New edition</button></li>
+      <li role="none" data-edition-only><a role="menuitem" id="menu-save" href="/api/edition.html" download>Save edition as HTML</a></li>
+      <li role="none" data-edition-only><button type="button" role="menuitem" id="menu-print">Print</button></li>
+      <li role="none" data-edition-only><button type="button" role="menuitem" id="menu-new">New edition</button></li>
+      <li role="none"><button type="button" role="menuitem" id="menu-theme">Switch to dark mode</button></li>
     </ul>
-    <button type="button" class="menu-button" id="menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-list" title="Edition options">
-      <span class="visually-hidden">Edition options</span>
+    <button type="button" class="menu-button" id="menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-list" title="Options">
+      <span class="visually-hidden">Options</span>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
   </div>

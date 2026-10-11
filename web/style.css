@@ -39,6 +39,24 @@
   }
 }
 
+/* A reader who picks dark gets it whatever the system theme; keep these in step with the block above */
+:root[data-theme="dark"] {
+  --paper: #121212;
+  --paper-deep: #1d1d1d;
+  --ink: #f2f2f2;
+  --ink-soft: #c8c8c8;
+  --ink-faint: #8e8e8e;
+  --rule: #f2f2f2;
+  --rule-soft: #333333;
+  --accent: #e0242b;
+  --accent-deep: #b3141a;
+  --bar: #000000;
+  --link: #7fb6ff;
+  --code-bg: #232323;
+  --card-hover: #1a1a1a;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; }
@@ -363,7 +381,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 
 /* On paper: light ink, no chrome, and every article of the edition in order */
 @media print {
-  :root, :root:not([data-theme="light"]) {
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
     --paper: #ffffff; --paper-deep: #ffffff; --ink: #000000; --ink-soft: #333333; --ink-faint: #555555;
     --rule: #000000; --rule-soft: #cccccc; --accent: #b00000; --link: #0b5cad; --code-bg: #f2f2f2;
     color-scheme: light;
