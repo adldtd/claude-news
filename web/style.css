@@ -192,6 +192,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .source-name { font-family: var(--sans); font-weight: 700; font-size: 0.85rem; }
 .source-detail { grid-column: 2; font-size: 0.76rem; color: var(--ink-faint); overflow-wrap: anywhere; }
 .source.is-off { opacity: 0.5; }
+.link-button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 .form-errors { color: var(--accent); margin: 0; min-height: 1.2em; font-family: var(--sans); font-size: 0.85rem; }
 .press-button {
   justify-self: start;
