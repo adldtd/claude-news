@@ -10,6 +10,50 @@ function toLocalInput(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Copies of defaultTarget and targetRange in src/limits.js, which the server checks against.
+function defaultTarget(since, until) {
+  const hours = (until - since) / 3600000;
+  return Math.min(15, Math.max(3, Math.round((7 * hours) / 12)));
+}
+
+function targetRange(suggested) {
+  return { min: 3, max: suggested + Math.min(Math.ceil(suggested / 2), 5) };
+}
+
+// The story target follows the date range until the user moves it, then stays put within the new range.
+let targetTouched = false;
+
+function setTarget(value) {
+  const slider = $('f-target');
+  const n = Math.min(Number(slider.max), Math.max(Number(slider.min), Math.round(Number(value))));
+  slider.value = n;
+  $('f-target-number').value = n;
+}
+
+function updateTarget() {
+  const since = new Date($('f-since').value);
+  const until = new Date($('f-until').value);
+  if (!(since < until)) return;
+  const suggested = defaultTarget(since, until);
+  const { min, max } = targetRange(suggested);
+  for (const input of [$('f-target'), $('f-target-number')]) Object.assign(input, { min, max });
+  setTarget(targetTouched ? $('f-target').value : suggested);
+  $('f-target-hint').textContent = `Target means the number of full stories to aim for; below the suggested ${suggested}, smaller news goes into In Brief. Above it, extra stories are only written if there is enough news.`;
+}
+
+function initTarget() {
+  $('f-since').addEventListener('input', updateTarget);
+  $('f-until').addEventListener('input', updateTarget);
+  $('f-target').addEventListener('input', (e) => {
+    targetTouched = true;
+    setTarget(e.target.value);
+  });
+  $('f-target-number').addEventListener('change', (e) => {
+    targetTouched = true;
+    setTarget(e.target.value);
+  });
+}
+
 function showView(name) {
   for (const [key, id] of Object.entries(VIEWS)) $(id).hidden = key !== name;
   document.body.dataset.phase = name;
@@ -45,6 +89,10 @@ function renderForm(state) {
   style.onchange = describeStyle;
   describeStyle();
 
+  targetTouched = false;
+  updateTarget();
+  $('f-words').value = 1000;
+
   $('f-instructions').value = '';
   $('form-errors').textContent = '';
   $('f-submit').disabled = false;
@@ -71,6 +119,8 @@ async function submitForm(event) {
         sources,
         style: $('f-style').value,
         instructions: $('f-instructions').value,
+        target: Number($('f-target').value),
+        maxWords: Number($('f-words').value),
       }),
     });
     const body = await r.json();
@@ -199,6 +249,7 @@ function initMenu() {
 $('assignment-form').addEventListener('submit', submitForm);
 initViewer();
 initMenu();
+initTarget();
 
 refresh();
 setInterval(refresh, 1500);

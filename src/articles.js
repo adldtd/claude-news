@@ -1,5 +1,8 @@
+import { DEFAULT_MAX_WORDS } from './limits.js';
+
 export const SIZES = ['breaking', 'major', 'standard'];
-export const MAX_WORDS = 1000;
+// A brief is the edition's "In Brief" round-up; it does not count toward the story target.
+export const KINDS = ['story', 'brief'];
 
 export function wordCount(text) {
   return String(text).split(/\s+/).filter(Boolean).length;
@@ -14,7 +17,8 @@ function slug(text, index) {
   return base || `article-${index + 1}`;
 }
 
-export function validateArticles(input) {
+// `limits` comes from the commission: maxWords per article and, when set, the target number of stories.
+export function validateArticles(input, { maxWords = DEFAULT_MAX_WORDS, target } = {}) {
   const list = Array.isArray(input) ? input : input?.articles;
   const errors = [];
   if (!Array.isArray(list)) {
@@ -29,9 +33,11 @@ export function validateArticles(input) {
     if (!a.headline || typeof a.headline !== 'string') errors.push(`${where}: headline is required`);
     if (!a.body || typeof a.body !== 'string') errors.push(`${where}: body (markdown) is required`);
     const words = wordCount(a.body ?? '');
-    if (words > MAX_WORDS) errors.push(`${where}: body is ${words} words, max is ${MAX_WORDS}`);
+    if (words > maxWords) errors.push(`${where}: body is ${words} words, max is ${maxWords}`);
     const size = a.size ?? 'standard';
     if (!SIZES.includes(size)) errors.push(`${where}: size must be one of ${SIZES.join(', ')}`);
+    const kind = a.kind ?? 'story';
+    if (!KINDS.includes(kind)) errors.push(`${where}: kind must be one of ${KINDS.join(', ')}`);
     if (a.sources !== undefined && !Array.isArray(a.sources)) errors.push(`${where}: sources must be an array`);
     const sources = (Array.isArray(a.sources) ? a.sources : [])
       .filter((s) => s && typeof s === 'object' && s.url)
@@ -47,6 +53,7 @@ export function validateArticles(input) {
       dek: String(a.dek ?? ''),
       section: String(a.section ?? 'General'),
       size,
+      kind,
       byline: String(a.byline ?? 'Staff Reporter'),
       publishedAt: String(a.publishedAt ?? new Date().toISOString()),
       sources,
@@ -54,6 +61,13 @@ export function validateArticles(input) {
       words,
     };
   });
+
+  const stories = articles.filter((a) => a.kind === 'story').length;
+  const briefs = articles.length - stories;
+  if (target !== undefined && stories > target) {
+    errors.push(`${stories} stories, target is ${target}: merge the smaller ones into the In Brief`);
+  }
+  if (briefs > 1) errors.push(`${briefs} briefs: an edition has at most one In Brief`);
 
   return errors.length ? { ok: false, errors } : { ok: true, articles };
 }

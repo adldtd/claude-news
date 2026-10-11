@@ -52,7 +52,7 @@ function masthead(state) {
 function sortedArticles(state) {
   return state.articles
     .map((a, i) => ({ a, i }))
-    .sort((x, y) => SIZE_RANK[x.a.size] - SIZE_RANK[y.a.size] || x.i - y.i)
+    .sort((x, y) => (x.a.kind === 'brief') - (y.a.kind === 'brief') || SIZE_RANK[x.a.size] - SIZE_RANK[y.a.size] || x.i - y.i)
     .map(({ a }) => a);
 }
 
@@ -84,6 +84,7 @@ function renderColophon(state) {
     ['Edition', `No. ${state.edition}`],
     ['Repository', repo && scan?.branch ? `${repo} · ${scan.branch}` : repo],
     ['House style', request?.style?.label],
+    ['Length', request?.limits && `Target: ${request.limits.target} stories · Up to ${request.limits.maxWords} words each`],
     ["Editor's notes", request?.instructions?.trim()],
   ].filter(([, v]) => v);
   $('colophon-list').replaceChildren(...rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })]));

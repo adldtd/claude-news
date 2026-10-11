@@ -195,7 +195,8 @@ const commands = {
     if (!rest[0]) return out({ ok: false, reason: 'publish needs a path to an articles JSON file' }, 1);
     const data = readJson(resolve(rest[0]));
     if (data === null) return out({ ok: false, errors: [`could not read JSON from ${rest[0]}`] }, 1);
-    const local = validateArticles(data);
+    // Only the server knows this edition's limits, so the local check is for shape alone.
+    const local = validateArticles(data, { maxWords: Infinity });
     if (!local.ok) return out({ ok: false, errors: local.errors }, 1);
     const s = await server(opts.repo);
     if (!s) return;

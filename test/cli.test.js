@@ -67,7 +67,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   const submit = await fetch(new URL('api/generate', url), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ since: '2026-09-30T00:00:00Z', until: '2026-10-01T00:00:00Z', sources: ['git', 'nope'], style: 'broadsheet', instructions: 'be brief' }),
+    body: JSON.stringify({ since: '2026-09-30T00:00:00Z', until: '2026-10-01T00:00:00Z', sources: ['git', 'nope'], style: 'broadsheet', instructions: 'be brief', target: 4, maxWords: 300 }),
   });
   assert.equal(submit.status, 200);
 
@@ -76,6 +76,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   assert.deepEqual(got.json.request.sources.map((s) => s.id), ['git']);
   assert.equal(got.json.request.instructions, 'be brief');
   assert.match(got.json.request.style.guide, /broadsheet\.md$/);
+  assert.deepEqual(got.json.request.limits, { target: 4, defaultTarget: 14, maxWords: 300 });
   assert.ok(got.json.articlesFile);
 
   const later = new Date(Date.now() + 60000).toISOString();
@@ -94,6 +95,12 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   const rejected = await cn('publish', badFile);
   assert.equal(rejected.code, 1);
   assert.ok(rejected.json.errors.length);
+
+  const tooLong = join(tempDir(), 'long.json');
+  writeFileSync(tooLong, JSON.stringify([{ headline: 'Long', body: 'word '.repeat(301) }]));
+  const overLimit = await cn('publish', tooLong);
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.json.errors[0], /max is 300/);
 
   writeFileSync(got.json.articlesFile, JSON.stringify({ articles: [{ headline: 'Hello', body: 'World', size: 'breaking' }] }));
   const published = await cn('publish', got.json.articlesFile);

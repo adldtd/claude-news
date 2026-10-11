@@ -54,7 +54,7 @@ Run `$CN wait --repo <repo>` with the Bash tool's `timeout` set to `600000`. It 
 presses **Go to press**. If it prints `pending: true`, run it again (it does not consume anything).
 Don't chat while waiting.
 
-The result gives you `request` (`since`, `until`, `sources`, `style.guide`, `instructions`) and
+The result gives you `request` (`since`, `until`, `sources`, `style.guide`, `instructions`, `limits`) and
 `articlesFile` (where to write the edition).
 
 ## 3. Report and gather
@@ -86,10 +86,15 @@ Then read `contextFiles` (skim; you only need enough to explain jargon).
 - Group the activity into stories, each about one piece of work or one theme (a feature, an
   incident, a refactor, a decision, a release, a docs overhaul). Related commits, PRs and tickets
   belong in the same story.
-- **How many:** about 7 articles per 12 hours of window, scaled by how much actually happened. A
-  quiet window gets fewer (minimum 1); a long or busy window gets more, capped at about 15. Merge
-  small items into a round-up ("In brief") rather than giving each its own article. No monoliths: if
-  one article covers unrelated things, split it.
+- **How many:** `request.limits.target` is the number of full stories to aim for, not a quota.
+  Anything that doesn't earn its own story goes into one **In Brief** round-up (`"kind": "brief"`),
+  which does not count toward the target.
+  - Never write more than `target` stories; `publish` rejects the edition if you do.
+  - Never pad. Stop adding stories once the In Brief would have nothing left in it, even if that
+    leaves you under the target. A quiet window can have 1 story and no brief.
+  - If `target` is below `limits.defaultTarget` (the suggestion for this window), give stories only
+    to the biggest news and put everything else in the In Brief.
+  - No monoliths: if one article covers unrelated things, split it (within the target).
 - **Sizing:** `breaking` and `major` only when the news earns it (see the style guide). It is fine
   for none to qualify.
 - Post a status line with the rundown, e.g. "Front page set: 6 stories, 1 major".
@@ -98,7 +103,7 @@ Then read `contextFiles` (skim; you only need enough to explain jargon).
 
 Follow the style guide. In short: you're writing for developers who don't know every workstream.
 Plain engineering vocabulary is fine; explain anything specific to this repo the first time it
-appears. Markdown body, **at most 1000 words**, with links to PRs, commits and tickets (build commit
+appears. Markdown body, **at most `request.limits.maxWords` words** (In Brief included), with links to PRs, commits and tickets (build commit
 links from `remote.webUrl`), code or diffs where they help, real quotes from the sources, and a
 "what's next". Structure it like a real news article and have fun with it, but never invent
 anything.
@@ -118,6 +123,7 @@ Write the edition to `articlesFile` as JSON:
       "dek": "one-sentence standfirst",
       "section": "Infrastructure",
       "size": "standard",
+      "kind": "story",
       "byline": "Claude, Infrastructure Correspondent",
       "publishedAt": "<ISO time>",
       "sources": [{ "label": "PR #313", "url": "https://…" }],
@@ -130,7 +136,11 @@ Write the edition to `articlesFile` as JSON:
 Write this file directly with your file-writing tool. Don't build it from a JavaScript or shell
 script: article bodies are full of backticks and quotes, and escaping them in code breaks the file.
 
-Order articles by importance; the site puts `breaking` first, then `major`, then `standard`.
+`kind` is `story` (the default) or `brief`; an edition has at most one brief. The brief is a short
+list of one- or two-line items, each with its link.
+
+Order articles by importance; the site puts `breaking` first, then `major`, then `standard`, and the
+brief last.
 
 ## 6. Publish
 
