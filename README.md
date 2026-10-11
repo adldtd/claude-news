@@ -36,6 +36,10 @@ claude-news stop     [--repo PATH]                 stop the site
 State lives in `$TMPDIR/claude-news/<repo-hash>/` (override with `CLAUDE_NEWS_STATE_ROOT`). The
 server binds to 127.0.0.1 only and stops itself after 3 idle hours.
 
+The form remembers the wires and house style you last sent to press, per repo, in
+`~/.config/claude-news/preferences.json` (follows `XDG_CONFIG_HOME`; override the folder with
+`CLAUDE_NEWS_CONFIG_DIR`).
+
 `serve` starts a detached server that outlives the agent session. `serve --foreground` runs the
 server in its own process instead. The skill starts it as a Claude Code background task, so the site
 stops when the session ends (or when the task hits its 2-hour limit), and then finds its URL with
