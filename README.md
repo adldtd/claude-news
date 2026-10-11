@@ -55,6 +55,10 @@ and your identity, but keeps the repository name, branch, house style, editor's 
 count shown under *About this edition*. Printing, from the menu or with Ctrl+P, lays out every
 article in order.
 
+The ⋯ button is also there before an edition is published, with **Switch to dark mode** (or light).
+The page follows your system theme until you pick one; the choice is remembered in this browser.
+Printing is always light.
+
 ## Token count
 
 While an edition is being written, the site shows how many tokens Claude has used since you pressed
