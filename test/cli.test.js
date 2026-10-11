@@ -123,6 +123,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   assert.equal(state.edition, 2);
   assert.equal(state.preferences.sources.git, true);
   assert.equal(state.preferences.style, 'broadsheet');
+  assert.equal(state.preferences.maxWords, 300);
   const prefs = JSON.parse(readFileSync(join(configRoot, 'preferences.json'), 'utf8'));
   assert.equal(prefs.repos[state.scan.root].sources.git, true);
 

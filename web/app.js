@@ -91,7 +91,7 @@ function renderForm(state) {
 
   targetTouched = false;
   updateTarget();
-  $('f-words').value = 1000;
+  $('f-words').value = preferences.maxWords;
 
   $('f-instructions').value = '';
   $('form-errors').textContent = '';

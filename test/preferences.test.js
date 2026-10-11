@@ -21,7 +21,18 @@ test('with nothing saved the form uses the scan defaults', () => {
   assert.deepEqual(formDefaults(scan, {}), {
     sources: { git: true, linear: true, 'github-prs': false, 'github-actions': false },
     style: 'broadsheet',
+    maxWords: 1000,
   });
+});
+
+test('the word limit is remembered like the style, but the story target is not', () => {
+  const file = join(tempDir(), 'preferences.json');
+  savePreferences(scan, { ...request(['git']), limits: { target: 4, defaultTarget: 7, maxWords: 400 } }, file);
+  const prefs = readPreferences(file);
+  assert.equal(formDefaults(scan, prefs).maxWords, 400);
+  assert.equal(formDefaults({ ...scan, root: '/repo/b' }, prefs).maxWords, 400, 'a new repo starts with the last limit used anywhere');
+  assert.equal(prefs.repos['/repo/a'].target, undefined);
+  assert.equal(formDefaults(scan, { repos: { '/repo/a': { maxWords: 99999 } } }).maxWords, 1000, 'an out-of-range limit is ignored');
 });
 
 test('a deselected source stays deselected for that repo only', () => {
