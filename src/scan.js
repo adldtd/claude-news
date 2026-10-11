@@ -1,13 +1,16 @@
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { KNOWLEDGE_VERSION, hashFiles, loadKnowledge, notesStatus, saveKnowledge, staleReason } from './knowledge.js';
 
 export const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const STYLES_DIR = join(PACKAGE_ROOT, 'styles');
 
 const NOT_TICKETS = new Set(['UTF', 'ISO', 'SHA', 'RFC', 'HTTP', 'TLS', 'SSL', 'ES', 'CVE', 'GPT', 'X', 'AES', 'RSA', 'WCAG', 'PEP']);
 const MIN_WINDOW_MS = 24 * 60 * 60 * 1000;
+const CONTEXT_FILES = ['README.md', 'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md', 'CONTRIBUTING.md', 'ARCHITECTURE.md', 'docs/README.md', 'docs/glossary.md'];
 
 function run(cmd, args, cwd, timeout = 15000) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024 });
@@ -68,7 +71,40 @@ export function listStyles() {
     });
 }
 
-export function scan(repoPath = process.cwd(), { now = new Date() } = {}) {
+// The slow, rarely-changing part of a scan: grepping the repo for trackers and reading 300 commits
+// for ticket keys. It is cached (see knowledge.js) and redone only when the cache goes stale.
+function fullScan(root) {
+  const subjects = git(['log', '-300', '--format=%s%n%b'], root).out.split('\n');
+  const branches = git(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'], root).out.split('\n');
+  const trackers = [
+    { id: 'linear', label: 'Linear issues', name: 'Linear', strong: 'linear\\.app/', weak: '\\blinear\\b' },
+    { id: 'jira', label: 'Jira issues', name: 'Jira', strong: 'atlassian\\.net|jira\\.[a-z0-9.-]+/browse', weak: '\\bjira\\b' },
+  ].map((t) => ({ ...t, strongFiles: repoMentions(root, t.strong), weakFiles: repoMentions(root, t.weak) }));
+  return {
+    ticketPrefixes: ticketPrefixes(subjects, branches),
+    trackers: trackers
+      .filter((t) => t.strongFiles.length > 0 || t.weakFiles.length >= 3)
+      .map((t) => ({ id: t.id, label: t.label, name: t.name, where: t.strongFiles[0] ?? t.weakFiles[0] })),
+  };
+}
+
+function repoKnowledge(root, head, contextFiles, { now, refresh }) {
+  const cached = loadKnowledge(root);
+  const contextHashes = hashFiles(root, contextFiles);
+  let commitsSince = null;
+  if (cached?.head) {
+    const r = git(['rev-list', '--count', `${cached.head}..${head}`], root);
+    if (r.ok) commitsSince = Number(r.out);
+  }
+  const reason = refresh ? 'a full scan was asked for' : staleReason(cached, { contextHashes, commitsSince }, now);
+  if (!reason) return { knowledge: cached, reason: null };
+  // Notes keep the scan they were written against, so a new full scan marks them stale.
+  const knowledge = { version: KNOWLEDGE_VERSION, id: randomUUID(), scannedAt: now.toISOString(), head, contextHashes, ...fullScan(root), notes: cached?.notes };
+  saveKnowledge(root, knowledge);
+  return { knowledge, reason };
+}
+
+export function scan(repoPath = process.cwd(), { now = new Date(), refresh = false } = {}) {
   const version = run('git', ['--version'], repoPath);
   if (version.missing || !version.ok) {
     return { ok: false, reason: 'git is not installed or not on PATH.' };
@@ -140,29 +176,20 @@ export function scan(repoPath = process.cwd(), { now = new Date() } = {}) {
     add('gitlab', 'GitLab merge requests', glab.ok, glab.missing ? 'glab CLI is not installed' : glab.ok ? `${remote.path} via glab` : 'glab is not authenticated');
   }
 
-  const subjects = git(['log', '-300', '--format=%s%n%b'], root).out.split('\n');
-  const branches = git(['for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/remotes'], root).out.split('\n');
-  const prefixes = ticketPrefixes(subjects, branches);
+  const contextFiles = CONTEXT_FILES.filter((f) => existsSync(join(root, f)));
+  const { knowledge, reason } = repoKnowledge(root, head.out, contextFiles, { now, refresh });
+  const prefixes = knowledge.ticketPrefixes;
   const keyNote = prefixes.length ? `ticket keys ${prefixes.slice(0, 3).map((p) => `${p}-…`).join(', ')} in commits/branches` : '';
-  const trackers = [
-    { id: 'linear', label: 'Linear issues', name: 'Linear', strong: 'linear\\.app/', weak: '\\blinear\\b' },
-    { id: 'jira', label: 'Jira issues', name: 'Jira', strong: 'atlassian\\.net|jira\\.[a-z0-9.-]+/browse', weak: '\\bjira\\b' },
-  ].map((t) => ({ ...t, strongFiles: repoMentions(root, t.strong), weakFiles: repoMentions(root, t.weak) }));
-  const detected = trackers.filter((t) => t.strongFiles.length > 0 || t.weakFiles.length >= 3);
-  for (const t of detected) {
-    const where = t.strongFiles[0] ?? t.weakFiles[0];
-    add(t.id, t.label, true, [keyNote, `referenced in ${where}`].filter(Boolean).join('; ') + ` (needs a ${t.name} MCP/tool in the agent session)`);
+  for (const t of knowledge.trackers) {
+    add(t.id, t.label, true, [keyNote, `referenced in ${t.where}`].filter(Boolean).join('; ') + ` (needs a ${t.name} MCP/tool in the agent session)`);
   }
-  if (prefixes.length && !detected.length) {
+  if (prefixes.length && !knowledge.trackers.length) {
     add('tickets', 'Issue tracker tickets', true, `${keyNote}; tracker unknown (needs a matching MCP/tool)`);
   }
 
   const changelogs = readdirSync(root).filter((f) => /^(CHANGELOG|CHANGES|HISTORY|RELEASES)/i.test(f));
   if (changelogs.length) add('changelog', 'Changelog', true, changelogs.join(', '));
   if (existsSync(join(root, 'docs'))) add('docs', 'Docs changes', true, 'files under docs/');
-
-  const contextFiles = ['README.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'ARCHITECTURE.md', 'docs/README.md', 'docs/glossary.md']
-    .filter((f) => existsSync(join(root, f)));
 
   return {
     ok: true,
@@ -176,6 +203,7 @@ export function scan(repoPath = process.cwd(), { now = new Date() } = {}) {
     sources,
     ticketPrefixes: prefixes,
     contextFiles,
+    knowledge: { fullScan: Boolean(reason), reason, scannedAt: knowledge.scannedAt, notes: notesStatus(root, knowledge) },
     styles: listStyles(),
   };
 }

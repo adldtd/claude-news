@@ -39,6 +39,21 @@ test('scan outside a repo exits 1 with a reason', async () => {
   }
 });
 
+test('notes are saved for the repo and reported by scan', async () => {
+  assert.equal((await cn('notes')).code, 1);
+  const file = join(tempDir(), 'notes.md');
+  writeFileSync(file, '# Notes\n\nAn *edition* is one newspaper.\n');
+  const saved = await cn('notes', file);
+  assert.equal(saved.code, 0);
+  assert.equal(saved.json.fresh, true);
+  assert.equal(readFileSync(saved.json.path, 'utf8'), '# Notes\n\nAn *edition* is one newspaper.\n');
+  const scanned = await cn('scan');
+  assert.equal(scanned.json.knowledge.fullScan, false);
+  assert.equal(scanned.json.knowledge.notes.path, saved.json.path);
+  assert.equal((await cn('scan', '--refresh')).json.knowledge.notes.fresh, false);
+  await cn('notes', file);
+});
+
 test('commands before serve explain that the site is not running', async () => {
   const { code, json } = await cn('status', 'hello');
   assert.equal(code, 1);
@@ -78,6 +93,7 @@ test('full round trip: serve, submit, wait, status, publish, reset, stop', async
   assert.equal(got.json.request.instructions, 'be brief');
   assert.match(got.json.request.style.guide, /broadsheet\.md$/);
   assert.deepEqual(got.json.request.limits, { target: 4, defaultTarget: 14, maxWords: 300 });
+  assert.equal(got.json.request.notes.fresh, true, 'notes saved in an earlier test reach the request');
   assert.ok(got.json.articlesFile);
 
   const later = new Date(Date.now() + 60000).toISOString();

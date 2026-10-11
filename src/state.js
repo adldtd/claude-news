@@ -3,9 +3,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+export function repoKey(repoRoot) {
+  return createHash('sha1').update(repoRoot).digest('hex').slice(0, 12);
+}
+
 export function stateDir(repoRoot) {
-  const hash = createHash('sha1').update(repoRoot).digest('hex').slice(0, 12);
-  const dir = join(process.env.CLAUDE_NEWS_STATE_ROOT || join(tmpdir(), 'claude-news'), hash);
+  const dir = join(process.env.CLAUDE_NEWS_STATE_ROOT || join(tmpdir(), 'claude-news'), repoKey(repoRoot));
   mkdirSync(dir, { recursive: true });
   return dir;
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scan } from '../src/scan.js';
@@ -7,11 +8,14 @@ import { stateDir, readServerInfo, clearServerInfo, readJson } from '../src/stat
 import { validateArticles } from '../src/articles.js';
 import { startServer } from '../src/server.js';
 import { codeVersion } from '../src/version.js';
+import { saveNotes } from '../src/knowledge.js';
 
 const USAGE = `claude-news <command> [options]
 
 Commands
-  scan     [--repo PATH]                 check git access and detect sources
+  scan     [--repo PATH] [--refresh]     check git access and detect sources; --refresh redoes
+                                         the cached full scan of trackers and ticket keys
+  notes    [--repo PATH] <notes.md>      save Claude's notes on the repo for later editions
   serve    [--repo PATH] [--foreground]  start (or reuse) the site and print its URL; with
                                          --foreground the site runs in this process and stops with it
   url      [--repo PATH] [--timeout S]   wait for this session's site (default 15s) and print its URL
@@ -22,7 +26,7 @@ Commands
 
 Every command prints JSON.`;
 
-const FLAGS = new Set(['foreground']);
+const FLAGS = new Set(['foreground', 'refresh']);
 
 function parseArgs(argv) {
   const opts = {};
@@ -44,8 +48,8 @@ function out(value, code = 0) {
   process.exitCode = code;
 }
 
-function scanOrExit(repo) {
-  const result = scan(resolve(repo ?? process.cwd()));
+function scanOrExit(repo, options) {
+  const result = scan(resolve(repo ?? process.cwd()), options);
   if (!result.ok) {
     out(result, 1);
     return null;
@@ -108,8 +112,22 @@ function reusable(info, owner) {
 
 const commands = {
   async scan({ opts }) {
-    const result = scanOrExit(opts.repo);
+    const result = scanOrExit(opts.repo, { refresh: opts.refresh === true });
     if (result) out(result);
+  },
+
+  async notes({ opts, rest }) {
+    if (!rest[0]) return out({ ok: false, reason: 'notes needs a path to a Markdown file' }, 1);
+    let text;
+    try {
+      text = readFileSync(resolve(rest[0]), 'utf8');
+    } catch {
+      return out({ ok: false, reason: `could not read ${rest[0]}` }, 1);
+    }
+    const result = scanOrExit(opts.repo);
+    if (!result) return;
+    const saved = saveNotes(result.root, text);
+    out(saved, saved.ok ? 0 : 1);
   },
 
   async serve({ opts }) {

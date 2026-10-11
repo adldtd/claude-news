@@ -24,7 +24,8 @@ local URL; open it, choose your options, press **Go to press**, and watch the ed
 ## CLI
 
 ```text
-claude-news scan     [--repo PATH]                 check git access and detect sources
+claude-news scan     [--repo PATH] [--refresh]     check git access and detect sources
+claude-news notes    [--repo PATH] <notes.md>      save Claude's notes on the repo for later editions
 claude-news serve    [--repo PATH] [--foreground]  start (or reuse) the site and print its URL
 claude-news url      [--repo PATH] [--timeout S]   wait for this session's site and print its URL
 claude-news wait     [--repo PATH] [--timeout S]   block until the user presses Go to press
@@ -48,6 +49,18 @@ stops when the session ends (or when the task hits its 2-hour limit), and then f
 `serve` reuses a running server only if it was started from the same code, and a foreground
 `serve` also requires the same session. Otherwise it stops the old server and starts a new one.
 A new server numbers its editions after the ones already saved, so none is overwritten.
+
+## Repo knowledge
+
+The first scan of a repo is a full one: it greps the repo for Linear and Jira links and reads the
+last 300 commits for ticket keys. Later scans reuse that and only look at new activity. After the
+first edition, Claude saves short notes on the repo (what it is, its jargon, its conventions) with
+`claude-news notes`, and later editions read those instead of the README and other context files.
+
+Both live in `~/.cache/claude-news/<repo-hash>/` (follows `XDG_CACHE_HOME`; override the folder
+with `CLAUDE_NEWS_CACHE_DIR`), so they survive a reboot. The next scan is a full one again when a
+context file changes, more than 300 commits have landed, a month has passed, or you run
+`scan --refresh`. A full scan marks the notes stale, and Claude rewrites them after the next edition.
 
 ## Saving and printing
 

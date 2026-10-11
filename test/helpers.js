@@ -7,6 +7,10 @@ export function tempDir(prefix = 'cn-test-') {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
+// Keep the repo-knowledge cache out of the real ~/.cache. CLI tests pass process.env on, so their
+// child processes use it too.
+process.env.CLAUDE_NEWS_CACHE_DIR = tempDir('cn-cache-');
+
 export function makeRepo({ email = 'me@example.com', name = 'Me', commits = [], remote, files = {} } = {}) {
   const dir = tempDir();
   const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
