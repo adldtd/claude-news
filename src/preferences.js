@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readJson, writeJson } from './state.js';
+import { DEFAULT_MAX_WORDS, WORDS_RANGE } from './limits.js';
 
 // The form choices a user keeps between editions. Unlike the state dir (under tmpdir, gone on
 // reboot) this lives in the user's config dir. Sources are kept per repo, as on/off per id, so a
@@ -17,7 +18,8 @@ export function readPreferences(file = preferencesPath()) {
   return prefs && typeof prefs === 'object' && !Array.isArray(prefs) ? prefs : {};
 }
 
-// What the form should start with for this repo: each source checked or not, and the style.
+// What the form should start with for this repo: each source checked or not, the style and the word
+// limit. The story target is not kept: it depends on the date range, so it always starts at the suggestion.
 export function formDefaults(scan, prefs) {
   const saved = prefs.repos?.[scan.root] ?? {};
   const known = (id) => scan.styles.some((s) => s.id === id);
@@ -26,7 +28,9 @@ export function formDefaults(scan, prefs) {
   const sources = Object.fromEntries(
     scan.sources.map((s) => [s.id, s.available && (typeof saved.sources?.[s.id] === 'boolean' ? saved.sources[s.id] : s.defaultOn)]),
   );
-  return { sources, style };
+  const inRange = (n) => Number.isInteger(n) && n >= WORDS_RANGE.min && n <= WORDS_RANGE.max;
+  const maxWords = [saved.maxWords, prefs.lastMaxWords].find(inRange) ?? DEFAULT_MAX_WORDS;
+  return { sources, style, maxWords };
 }
 
 // Records what the user sent to press. Sources that were unavailable keep their saved value, so
@@ -39,10 +43,12 @@ export function savePreferences(scan, request, file = preferencesPath()) {
   const sources = { ...previous.sources };
   for (const s of scan.sources) if (s.available) sources[s.id] = chosen.has(s.id);
   const style = request.style?.id;
+  const maxWords = request.limits?.maxWords;
   const next = {
     ...prefs,
     ...(style ? { lastStyle: style } : {}),
-    repos: { ...repos, [scan.root]: { ...previous, sources, ...(style ? { style } : {}) } },
+    ...(maxWords ? { lastMaxWords: maxWords } : {}),
+    repos: { ...repos, [scan.root]: { ...previous, sources, ...(style ? { style } : {}), ...(maxWords ? { maxWords } : {}) } },
   };
   mkdirSync(dirname(file), { recursive: true });
   writeJson(file, next);

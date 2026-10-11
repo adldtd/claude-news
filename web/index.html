@@ -65,6 +65,22 @@
           <div id="f-sources" class="sources"></div>
         </fieldset>
 
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="f-target">Stories</label>
+            <div class="slider-field">
+              <input type="range" id="f-target" step="1" aria-describedby="f-target-hint">
+              <input type="number" id="f-target-number" step="1" aria-label="Stories">
+            </div>
+            <span class="field-hint" id="f-target-hint"></span>
+          </div>
+          <label class="field">
+            <span class="field-label">Words per article</span>
+            <input type="number" id="f-words" min="100" max="3000" step="1" value="1000" required>
+            <span class="field-hint">Longest any article can be, In Brief included.</span>
+          </label>
+        </div>
+
         <label class="field">
           <span class="field-label">House style</span>
           <select id="f-style"></select>

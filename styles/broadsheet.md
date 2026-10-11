@@ -38,8 +38,9 @@ but they **don't** know every corner of this repo or what other teams have been 
    - Use `##` subheads only for longer pieces.
 5. **What's next**: a closing paragraph or short section on what's open, blocked or coming.
 
-Keep each article focused on one piece of work or one theme. 250–700 words is the sweet spot,
-and 1000 is the hard ceiling. Don't add the headline as a markdown heading inside `body`.
+Keep each article focused on one piece of work or one theme. The commission sets a word limit
+(1000 unless the reader changed it): 25–70% of it is the sweet spot, and the limit is the hard
+ceiling. Don't add the headline as a markdown heading inside `body`.
 
 ## Sections
 Pick a newspaper-style `section` that fits: e.g. **Front Page**, **Infrastructure**, **Product**,

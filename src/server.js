@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 import { validateArticles } from './articles.js';
+import { resolveLimits } from './limits.js';
 import { writeJson, serverInfoPath, clearServerInfo } from './state.js';
 import { PACKAGE_ROOT } from './scan.js';
 import { usageTracker } from './usage.js';
@@ -53,6 +54,8 @@ function validRequest(body, scan) {
   if (!sources.length) errors.push('pick at least one available source');
   const style = scan.styles.find((s) => s.id === body.style) ?? scan.styles.find((s) => s.default) ?? scan.styles[0];
   if (errors.length) return { errors };
+  const { limits, errors: limitErrors } = resolveLimits(body, since, until);
+  if (limitErrors.length) return { errors: limitErrors };
   return {
     request: {
       repo: scan.root,
@@ -61,6 +64,7 @@ function validRequest(body, scan) {
       sources: sources.map((id) => ({ id, label: known.get(id).label, detail: known.get(id).detail })),
       style: style ? { id: style.id, label: style.label, guide: style.path } : null,
       instructions: String(body.instructions ?? '').slice(0, 4000),
+      limits,
       remote: scan.remote,
       contextFiles: scan.contextFiles,
       submittedAt: new Date().toISOString(),
@@ -175,7 +179,7 @@ export function startServer({ dir, scan, port = 0, host = '127.0.0.1', projectsR
     },
 
     'POST /api/publish': async (req, res) => {
-      const result = validateArticles(await readBody(req));
+      const result = validateArticles(await readBody(req), state.request?.limits);
       if (!result.ok) return send(res, 400, { errors: result.errors });
       updateUsage();
       Object.assign(state, { phase: 'published', articles: result.articles, publishedAt: new Date().toISOString() });
