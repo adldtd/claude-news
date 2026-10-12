@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readJson, repoKey, writeJson } from './state.js';
+import { readJson, repoDataDir, writeJson } from './state.js';
 
 // What a full scan learns about how a repo works (its trackers, ticket keys and context files), plus
 // the notes Claude writes after reading those files. Later scans reuse it and only look at the new
-// activity. It lives in the user's cache dir, not the state dir under tmpdir, so a reboot keeps it.
+// activity. It lives under repoDataDir, not the state dir under tmpdir, so a reboot keeps it.
 // Bump the version when the full scan starts finding something new, so old caches are redone.
 export const KNOWLEDGE_VERSION = 1;
 // The full scan reads the last 300 commits for ticket keys; past that many new ones, redo it.
@@ -15,8 +14,7 @@ export const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_NOTES_CHARS = 20000;
 
 export function knowledgeDir(root) {
-  const base = process.env.CLAUDE_NEWS_CACHE_DIR || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'claude-news');
-  return join(base, repoKey(root));
+  return join(repoDataDir(root), 'knowledge');
 }
 
 const knowledgePath = (root) => join(knowledgeDir(root), 'knowledge.json');

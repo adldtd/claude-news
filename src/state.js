@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export function repoKey(repoRoot) {
@@ -11,6 +11,13 @@ export function stateDir(repoRoot) {
   const dir = join(process.env.CLAUDE_NEWS_STATE_ROOT || join(tmpdir(), 'claude-news'), repoKey(repoRoot));
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+// One folder per repo for what outlives a reboot, unlike stateDir. Each feature keeps a subfolder:
+// knowledge/ holds the cached full scan and notes; past editions (#3) are meant to sit beside it.
+export function repoDataDir(repoRoot) {
+  const base = process.env.CLAUDE_NEWS_CACHE_DIR || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'claude-news');
+  return join(base, repoKey(repoRoot));
 }
 
 export function readJson(file, fallback = null) {

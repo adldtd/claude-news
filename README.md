@@ -57,8 +57,9 @@ last 300 commits for ticket keys. Later scans reuse that and only look at new ac
 first edition, Claude saves short notes on the repo (what it is, its jargon, its conventions) with
 `claude-news notes`, and later editions read those instead of the README and other context files.
 
-Both live in `~/.cache/claude-news/<repo-hash>/` (follows `XDG_CACHE_HOME`; override the folder
-with `CLAUDE_NEWS_CACHE_DIR`), so they survive a reboot. The next scan is a full one again when a
+Both live in `~/.cache/claude-news/<repo-hash>/knowledge/` (follows `XDG_CACHE_HOME`; override
+`~/.cache/claude-news` with `CLAUDE_NEWS_CACHE_DIR`), so they survive a reboot. The per-repo folder
+is shared: other data kept between sessions, such as past editions, goes beside `knowledge/`. The next scan is a full one again when a
 context file changes, more than 300 commits have landed, a month has passed, or you run
 `scan --refresh`. A full scan marks the notes stale, and Claude rewrites them after the next edition.
 
