@@ -9,6 +9,7 @@ import { PACKAGE_ROOT } from './scan.js';
 import { usageTracker } from './usage.js';
 import { editionHtml, editionFilename } from './export.js';
 import { formDefaults, readPreferences, savePreferences } from './preferences.js';
+import { notesStatus } from './knowledge.js';
 
 const WEB_ROOT = join(PACKAGE_ROOT, 'web');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -67,6 +68,8 @@ function validRequest(body, scan) {
       limits,
       remote: scan.remote,
       contextFiles: scan.contextFiles,
+      // Read now, not from the server's scan, so notes saved after an earlier edition are seen.
+      notes: notesStatus(scan.root),
       submittedAt: new Date().toISOString(),
     },
   };

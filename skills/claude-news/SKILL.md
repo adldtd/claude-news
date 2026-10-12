@@ -27,6 +27,9 @@ Run `$CN scan --repo <repo>`.
   for. Don't start the site.
 - Otherwise note `sources` (what the user can pick), `remote.webUrl` (for building links),
   `ticketPrefixes`, and `contextFiles` (read these later to explain repo-specific terms).
+- `knowledge` says whether this scan redid the slow part (`fullScan`, `reason`) or reused what an
+  earlier one found. `knowledge.notes` is the notes file you saved on an earlier run, if any; it is
+  usable when `fresh` is `true`.
 - `lastUserCommit.branches` lists every branch holding the user's last commit and `pushed` says
   whether any of them is on a remote. Don't assume it is on the current branch or in an open PR.
 
@@ -79,7 +82,12 @@ Gather **only** the selected sources, **only** within `since`–`until`:
 | `changelog` | Read the changelog entries dated in the window. |
 | `docs` | `git log --since --until --stat -- docs/` and read the changed pages. |
 
-Then read `contextFiles` (skim; you only need enough to explain jargon).
+Then learn the repo's background, using `request.notes` (the newest state of `knowledge.notes`):
+
+- If `request.notes.fresh` is `true`, read that notes file **instead of** `contextFiles`. Open a
+  context file only for a term the notes don't cover.
+- Otherwise read `contextFiles` (skim; you only need enough to explain jargon). You'll save notes
+  in step 6, so later editions can skip this.
 
 ## 4. Plan the edition
 
@@ -148,6 +156,18 @@ Run `$CN publish --repo <repo> <articlesFile>`. If it returns `errors`, fix the 
 Then tell the user in one or two lines that the edition is live at the URL, how many stories it
 has, any sources you had to skip, and the tokens used (`usage.total`, from the publish result, when
 present; the site shows it too).
+
+**Save notes.** If `request.notes` was `null` or not `fresh`, write a Markdown file (at most about
+600 words) in `stateDir` with what a later edition needs to know about the repo and won't change
+week to week:
+
+- what the project is, in two or three sentences
+- a glossary of repo-specific terms, one line each
+- the main areas or workstreams and who works on them
+- conventions: branch and commit naming, ticket keys, how releases and reviews happen
+
+Leave out this edition's news. Then run `$CN notes --repo <repo> <file>`. The notes stay in use
+until a full scan finds the context files changed, many new commits, or a month gone by.
 
 The site has a **New edition** button. If the user asks for another edition, go back to step 2. When
 the user is done, `$CN stop --repo <repo>` shuts the site down (it also stops by itself after 3 idle hours).
